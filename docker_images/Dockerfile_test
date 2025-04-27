@@ -1,0 +1,67 @@
+# 使用官方 PHP 8.1 FPM 镜像作为基础
+FROM php:8.1-fpm
+
+# 安装必要的系统依赖和工具
+RUN apt-get update && apt-get install -y \
+    nginx \
+    git \
+    unzip \
+    libzip-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libssl-dev \
+    libpcre3-dev \
+    librabbitmq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 PHP 扩展
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
+    gd \
+    zip \
+    bcmath \
+    sockets \
+    pcntl \
+    pdo_mysql \
+    opcache
+
+# 安装 Redis 扩展
+RUN pecl install redis && docker-php-ext-enable redis
+
+# 安装 MongoDB 扩展
+RUN pecl install mongodb && docker-php-ext-enable mongodb
+
+# 安装 Composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+USER www-data
+WORKDIR /data/www
+
+USER root
+
+COPY ..docker_config/php-fpm /usr/local/etc
+
+#源码
+COPY ../docker_www/. /data/www
+
+#nginx 配置
+COPY ../docker_config/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY ../docker_config/nginx/www.conf /etc/nginx/conf.d/default.conf
+COPY ../docker_config/nginx/fastcgi_params /etc/nginx/fastcgi_params
+COPY ../docker_build/php.ini /usr/local/etc/php/php.ini
+COPY ../docker_build/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+
+COPY ../docker_config/nginx/jx.api.conf /etc/nginx/sites-enabled/jx.api.conf
+
+#启动脚本
+COPY ../docker_build/init_container.sh /init_container.sh
+RUN chmod +x /init_container.sh
+
+RUN mkdir -p /data/log/php && mkdir -p /data/log/api
+RUN mkdir -p /data/log/cron && chown www-data:www-data /data/log
+
+# 暴露端口
+EXPOSE 80 443
+
+CMD ["/bin/sh","/init_container.sh"]
