@@ -1,0 +1,1 @@
+FROM crpi-drrc51pu6kt25mye.cn-shanghai.personal.cr.aliyuncs.com/bianhy/nginx-php:7.4
